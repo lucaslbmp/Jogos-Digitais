@@ -8,19 +8,27 @@ public class Maria : MonoBehaviour
     public Rigidbody cr;
     public CharacterController charController;
 
-    float vel_horiz = 3.0f;
-    float vel_giro = 80f;
+    //constantes
+    float walk_speed = 3f;
+    float run_speed = 6f;
+    float vel_turn_max = 80f;
     float vel_pulo = 5f;
-    float vel_angular;
-    float gravidade = 9.8f;
-    float velocidade;
+    float gravity = 9.8f;
+
+    float entradaH = 0f, entradaV = 0f;
+    float vel_turn;
+    float velAnimation;
+    float moveSpeed;
+
     Vector3 vel = Vector3.zero;
-    private bool correr = false;
-    private bool pular = false;
-    private bool pulando = false;
-    private bool descansar = true;
-    private bool atacando = false;
+
+    private bool run = false;
+    private bool jump = false;
+    private bool jumping = false;
+    private bool rest = true;
+    private bool attacking = false;
     int attack_num = 0;
+    
     Camera mainCamera;
 
     string[] Combo1 = { "Maria_slash_0", "Maria_slash_2" };
@@ -34,102 +42,81 @@ public class Maria : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        GetMovementInputs();
-        GetAttackInputs();
+        UpdateMovementStates();
+        UpdateAttackStates();
     }
 
     private void FixedUpdate()
     {
-        var impulse = (vel_angular * Mathf.Deg2Rad) * Vector3.up;
+        UpdateAnimations();
+        var impulse = (vel_turn * Mathf.Deg2Rad) * Vector3.up;
         cr.AddTorque(impulse, ForceMode.Impulse);
     }
 
-    void GetMovementInputs()
+    void UpdateMovementStates()
     {
+        UpdateJumpState();
+        UpdateRunState();
+
+        entradaH = Input.GetAxis("Horizontal");
+        entradaV = Input.GetAxis("Vertical");
+        float mouseXInput = Input.GetAxis("Mouse X");
+        
+        vel_turn = vel_turn_max * Mathf.Clamp(mouseXInput, -1, 1);
+        Vector3 moveHor = transform.right * entradaH + transform.forward * entradaV;
+        vel = moveHor * moveSpeed + vel.y * Vector3.up;
+
+        rest = moveHor.sqrMagnitude < float.Epsilon;
+        velAnimation = rest ? 0f : velAnimation;
+
+        charController.Move(vel * Time.deltaTime);
+    }
+
+    void UpdateJumpState()
+    {
+        //print(jump);
         if (Input.GetKeyDown("space"))
         {
-            anim.Play("Maria_jump");
-            pular = true;
-            pulando = true;
+            //anim.Play("Maria_jump");
+            jump = true;
+            jumping = true;
         }
         //else if(charController.isGrounded)
-        else if (cr.velocity.y < float.Epsilon)
+        else if (cr.velocity.y < .01 && charController.isGrounded)
         {
-            pulando = false;
+            //vel.y = 0f;
+            jumping = false;
         }
-        if (Input.GetKey(KeyCode.LeftShift))
-        {
-            correr = true;
-        }
-        else
-        {
-            correr = false;
-        }
-
-        float entradaH = Input.GetAxis("Horizontal");
-        float entradaV = Input.GetAxis("Vertical");
-
-        float mouseXInput = Input.GetAxis("Mouse X");
-        vel_angular = vel_giro * Mathf.Clamp(mouseXInput, -1, 1);
-
-        Vector3 moveZ = transform.forward * entradaV;
-        Vector3 moveX = transform.right * entradaH;
-
-        if (correr)
-        {
-            moveX *= 3f;
-            moveZ *= 3f;
-            //anim.speed = 2f;
-            velocidade = 0.5f;
-            descansar = false;
-        }
-        else
-        {
-            //anim.speed = 1f;
-            velocidade = 0.2f;
-            descansar = false;
-        }
-        Vector3 moveHor = moveX + moveZ;
-
-
-        vel = moveHor * vel_horiz + vel.y * Vector3.up;
-        //Vector3 vel_pulo = Vector3.up * 2f * (pular ? 1 : 0);
-        //vel += Vector3.up * vel_pulo * (pular ? 1 : 0);
-
-        descansar = moveHor.sqrMagnitude < float.Epsilon;
-        velocidade = descansar ? 0f : velocidade;
-
-        if (pular && charController.isGrounded)
+        else if (jump && charController.isGrounded)
         {
             vel.y = vel_pulo;
-            //cr.AddForce(100f * Vector3.up, ForceMode.Force);
-            pular = false;
+            jump = false;
         }
 
         if (!charController.isGrounded)
         {
-            //vel.y += Physics.gravity.y * Time.deltaTime;
-            vel.y -= gravidade * Time.deltaTime;
+            vel.y -= gravity * Time.deltaTime;
         }
-        //charController.Move((vel + vel_pulo) * Time.deltaTime);
-        charController.Move(vel * Time.deltaTime);
+    }
 
-        anim.SetFloat("entradaH", entradaH);
-        anim.SetFloat("entradaV", entradaV);
-        anim.SetBool("descansar", descansar);
-        anim.SetFloat("velocidade", velocidade);
-        if (charController.isGrounded)
+    void UpdateRunState()
+    {
+        run = Input.GetKey(KeyCode.LeftShift);
+        if (run)
         {
-            anim.SetBool("correr", correr);
-            anim.SetFloat("velocidade", velocidade);
+            moveSpeed = run_speed;
+            velAnimation = 0.5f;
+            rest = false;
         }
         else
         {
-            anim.SetBool("correr", false);
-            anim.SetFloat("velocidade", 0f);
+            moveSpeed = walk_speed;
+            velAnimation = 0.2f;
+            rest = false;
         }
     }
-    void GetAttackInputs()
+
+    void UpdateAttackStates()
     {
         if (Input.GetMouseButtonDown(0))
         {
@@ -151,29 +138,55 @@ public class Maria : MonoBehaviour
             // }
             if (charController.isGrounded)
             {
-                if (atacando)
+                if (attacking)
                 {
-                    atacando = anim.GetCurrentAnimatorStateInfo(0).IsName(Combo1[attack_num]) && anim.GetCurrentAnimatorStateInfo(0).normalizedTime < 1.0f;
+                    attacking = anim.GetCurrentAnimatorStateInfo(0).IsName(Combo1[attack_num]) && anim.GetCurrentAnimatorStateInfo(0).normalizedTime < 1.0f;
                     //print(anim.GetCurrentAnimatorStateInfo(0).normalizedTime);
-                    attack_num = atacando ? attack_num : (++attack_num % Combo1.Length);
+                    attack_num = attacking ? attack_num : (++attack_num % Combo1.Length);
                 }
                 else
                 {
                     //anim.Play("Maria_slash_" + attack_num);
                     anim.Play(Combo1[attack_num]);
-                    atacando = true;
+                    attacking = true;
                 }
             }
             else
             {
-                if (atacando)
-                    atacando = anim.GetCurrentAnimatorStateInfo(0).IsName("Maria_jump_attack") && anim.GetCurrentAnimatorStateInfo(0).normalizedTime < 1.0f;
+                if (attacking)
+                    attacking = anim.GetCurrentAnimatorStateInfo(0).IsName("Maria_jump_attack") && anim.GetCurrentAnimatorStateInfo(0).normalizedTime < 1.0f;
                 else
                 {
                     anim.Play("Maria_jump_attack");
-                    atacando = true;
+                    attacking = true;
                 }
             }
+        }
+    }
+
+    void UpdateAnimations()
+    {
+        anim.SetFloat("entradaH", entradaH);
+        anim.SetFloat("entradaV", entradaV);
+        anim.SetBool("descansar", rest);
+        anim.SetFloat("velocidade", velAnimation);
+        if (jump && charController.isGrounded)
+        {
+            anim.Play("Maria_jump");
+        }
+        //if (jump && charController.isGrounded)
+        //{
+        //    anim.SetTrigger("pular");
+        //}
+        if (charController.isGrounded)
+        {
+            anim.SetBool("correr", run);
+            anim.SetFloat("velocidade", velAnimation);
+        }
+        else
+        {
+            anim.SetBool("correr", false);
+            anim.SetFloat("velocidade", 0f);
         }
     }
 }

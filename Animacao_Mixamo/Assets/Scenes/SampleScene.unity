@@ -963,7 +963,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   anim: {fileID: 2066903560}
-  cr: {fileID: 0}
+  cr: {fileID: 2066903564}
   charController: {fileID: 2066903562}
 --- !u!54 &2066903564
 Rigidbody:
